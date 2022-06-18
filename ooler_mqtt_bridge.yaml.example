@@ -1,0 +1,9 @@
+---
+# The MAC address of your Ooler device
+ooler_mac: "AA:BB:CC:DD:EE:FF"
+# The hostname/IP of your broker
+mqtt_broker: mosquitto
+# If you have a custom Home Assistant discovery prefix, set it here
+homeassistant_prefix: homeassistant
+# How often to send periodic updates, in seconds
+update_interval: 60

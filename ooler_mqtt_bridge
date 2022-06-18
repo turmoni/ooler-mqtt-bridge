@@ -1,0 +1,126 @@
+#!/usr/bin/env python3
+"""ooler_mqtt_bridge - allow for control/monitoring of an Ooler via MQTT"""
+import json
+import sys
+import asyncio
+import yaml
+from asyncio_mqtt import Client
+from ooler import constants
+from ooler import ooler
+
+
+async def main():
+    """Initiate and start the loop"""
+    myooler = ooler.Ooler(address=config["ooler_mac"], stay_connected=True)
+
+    cfg_payload = {
+        "name": myooler.name,
+        "mode_state_topic": f"ooler/{sanitise_mac(myooler.address)}/state",
+        "mode_state_template": "{{ value_json.power }}",
+        "current_temperature_topic": f"ooler/{sanitise_mac(myooler.address)}/state",
+        "current_temperature_template": "{{ value_json.current_temperature }}",
+        "temperature_state_topic": f"ooler/{sanitise_mac(myooler.address)}/state",
+        "temperature_state_template": "{{ value_json.desired_temperature }}",
+        "fan_mode_state_topic": f"ooler/{sanitise_mac(myooler.address)}/state",
+        "fan_mode_state_template": "{{ value_json.fan_mode }}",
+        "fan_mode_command_topic": f"ooler/{sanitise_mac(myooler.address)}/fan/set",
+        "mode_command_topic": f"ooler/{sanitise_mac(myooler.address)}/power/set",
+        "temperature_command_topic": f"ooler/{sanitise_mac(myooler.address)}/temperature/set",
+        "modes": ["auto", "off"],
+        "temperature_unit": "C",
+        "temp_step": 1,
+        "unique_id": myooler.address,
+        "device": {
+            "connections": [("mac", myooler.address)],
+            "model": "Ooler",
+            "manufacturer": "chilisleep",
+            "suggested_area": "Bedroom",
+        },
+        "fan_modes": ["Silent", "Regular", "Boost"],
+        "icon": "mdi:bed",
+        "max_temp": 47,
+        "min_temp": 12,
+    }
+
+    cfg_topic = f"{config['homeassistant_prefix']}/climate/{sanitise_mac(myooler.address)}/config"
+    async with Client(config["mqtt_broker"]) as mqtt:
+        await mqtt.publish(cfg_topic, json.dumps(cfg_payload))
+        await mqtt.subscribe(f"ooler/{sanitise_mac(myooler.address)}/+/set")
+        background_tasks.add(asyncio.create_task(control_power(mqtt, myooler)))
+        background_tasks.add(asyncio.create_task(control_fan(mqtt, myooler)))
+        background_tasks.add(asyncio.create_task(control_temperature(mqtt, myooler)))
+        update_task = asyncio.create_task(send_update_loop(mqtt, myooler))
+        background_tasks.add(update_task)
+
+        # This will never return
+        await update_task
+
+
+def sanitise_mac(mac: str) -> str:
+    """Clean up a MAC so it's suitable for use where colons aren't"""
+    return mac.replace(":", "_")
+
+
+async def control_fan(mqtt: Client, myooler: ooler.Ooler) -> None:
+    """Watch for and act on fan control messages"""
+    message_filter = f"ooler/{sanitise_mac(myooler.address)}/fan/set"
+    async with mqtt.filtered_messages(message_filter) as messages:
+        async for message in messages:
+            fan_speed = message.payload.decode()
+            myooler.fan_speed = constants.FanSpeed[fan_speed]
+            await send_update(mqtt, myooler)
+
+
+async def control_temperature(mqtt: Client, myooler: ooler.Ooler) -> None:
+    """Watch for and act on temperature control messages"""
+    message_filter = f"ooler/{sanitise_mac(myooler.address)}/temperature/set"
+    async with mqtt.filtered_messages(message_filter) as messages:
+        async for message in messages:
+            temperature = int(float(message.payload.decode()))
+            myooler.desired_temperature_c = temperature
+            await send_update(mqtt, myooler)
+
+
+async def control_power(mqtt: Client, myooler: ooler.Ooler) -> None:
+    """Watch for and act on power control messages"""
+    message_filter = f"ooler/{sanitise_mac(myooler.address)}/power/set"
+    async with mqtt.filtered_messages(message_filter) as messages:
+        async for message in messages:
+            if message.payload.decode() == "off":
+                myooler.powered_on = False
+            elif message.payload.decode() == "auto":
+                myooler.powered_on = True
+
+            await send_update(mqtt, myooler)
+
+
+async def send_update_loop(mqtt: Client, myooler: ooler.Ooler) -> None:
+    """Infinite loop sending update messages then sleeping"""
+    while True:
+        await send_update(mqtt, myooler)
+        await asyncio.sleep(config["update_interval"])
+
+
+async def send_update(mqtt: Client, myooler: ooler.Ooler) -> None:
+    """Send a single update message"""
+    power = "off"
+    if myooler.powered_on is True:
+        power = "auto"
+
+    state_payload = {
+        "power": power,
+        "current_temperature": myooler.actual_temperature_c,
+        "desired_temperature": myooler.desired_temperature_c,
+        "fan_mode": (myooler.fan_speed).name,
+    }
+
+    topic = f"ooler/{sanitise_mac(myooler.address)}/state"
+    await mqtt.publish(topic, payload=json.dumps(state_payload))
+
+
+if __name__ == "__main__":
+    background_tasks = set()
+    conf = sys.argv[1]
+    with open(conf, "r", encoding="utf-8") as config_file:
+        config = yaml.safe_load(config_file)
+    asyncio.run(main())
