@@ -6,49 +6,72 @@ import asyncio
 import yaml
 from asyncio_mqtt import Client
 from ooler import constants
-from ooler import ooler
+import ooler
 
 
 async def main():
     """Initiate and start the loop"""
     myooler = ooler.Ooler(address=config["ooler_mac"], stay_connected=True)
 
-    cfg_payload = {
-        "name": myooler.name,
-        "mode_state_topic": f"ooler/{sanitise_mac(myooler.address)}/state",
-        "mode_state_template": "{{ value_json.power }}",
-        "current_temperature_topic": f"ooler/{sanitise_mac(myooler.address)}/state",
-        "current_temperature_template": "{{ value_json.current_temperature }}",
-        "temperature_state_topic": f"ooler/{sanitise_mac(myooler.address)}/state",
-        "temperature_state_template": "{{ value_json.desired_temperature }}",
-        "fan_mode_state_topic": f"ooler/{sanitise_mac(myooler.address)}/state",
-        "fan_mode_state_template": "{{ value_json.fan_mode }}",
-        "fan_mode_command_topic": f"ooler/{sanitise_mac(myooler.address)}/fan/set",
-        "mode_command_topic": f"ooler/{sanitise_mac(myooler.address)}/power/set",
-        "temperature_command_topic": f"ooler/{sanitise_mac(myooler.address)}/temperature/set",
-        "modes": ["auto", "off"],
-        "temperature_unit": "C",
-        "temp_step": 1,
-        "unique_id": myooler.address,
-        "device": {
-            "connections": [("mac", myooler.address)],
-            "model": "Ooler",
-            "manufacturer": "chilisleep",
-            "suggested_area": "Bedroom",
-        },
-        "fan_modes": ["Silent", "Regular", "Boost"],
-        "icon": "mdi:bed",
-        "max_temp": 47,
-        "min_temp": 12,
+    device_definition = {
+        "connections": [("mac", myooler.address)],
+        "model": "Ooler",
+        "manufacturer": "chilisleep",
+        "suggested_area": "Bedroom",
     }
 
-    cfg_topic = f"{config['homeassistant_prefix']}/climate/{sanitise_mac(myooler.address)}/config"
+    cfg_payloads = {
+        f"{config['homeassistant_prefix']}/climate/{sanitise_mac(myooler.address)}/config": {
+            "name": myooler.name,
+            "mode_state_topic": f"ooler/{sanitise_mac(myooler.address)}/state",
+            "mode_state_template": "{{ value_json.power }}",
+            "current_temperature_topic": f"ooler/{sanitise_mac(myooler.address)}/state",
+            "current_temperature_template": "{{ value_json.current_temperature }}",
+            "temperature_state_topic": f"ooler/{sanitise_mac(myooler.address)}/state",
+            "temperature_state_template": "{{ value_json.desired_temperature }}",
+            "fan_mode_state_topic": f"ooler/{sanitise_mac(myooler.address)}/state",
+            "fan_mode_state_template": "{{ value_json.fan_mode }}",
+            "fan_mode_command_topic": f"ooler/{sanitise_mac(myooler.address)}/fan/set",
+            "mode_command_topic": f"ooler/{sanitise_mac(myooler.address)}/power/set",
+            "temperature_command_topic": f"ooler/{sanitise_mac(myooler.address)}/temperature/set",
+            "modes": ["auto", "off"],
+            "temperature_unit": "C",
+            "temp_step": 1,
+            "unique_id": myooler.address,
+            "device": device_definition,
+            "fan_modes": ["Silent", "Regular", "Boost"],
+            "icon": "mdi:bed",
+            "max_temp": 47,
+            "min_temp": 12,
+        },
+        f"{config['homeassistant_prefix']}/sensor/{sanitise_mac(myooler.address)}_water_level/config": {
+            "name": "Water Level",
+            "state_topic": f"ooler/{sanitise_mac(myooler.address)}/state",
+            "unit_of_measurement": "%",
+            "value_template": "{{ value_json.water_level }}",
+            "unique_id": f"{myooler.address}_water_level",
+            "device": device_definition,
+        },
+        f"{config['homeassistant_prefix']}/switch/{sanitise_mac(myooler.address)}_cleaning/config": {
+            "name": "UV Cleaning",
+            "state_topic": f"ooler/{sanitise_mac(myooler.address)}/state",
+            "command_topic": f"ooler/{sanitise_mac(myooler.address)}/cleaning/set",
+            "value_template": "{{ value_json.cleaning }}",
+            "unique_id": f"{myooler.address}_cleaning",
+            "device": device_definition,
+            "payload_on": True,
+            "payload_off": False,
+        },
+    }
+
     async with Client(config["mqtt_broker"]) as mqtt:
-        await mqtt.publish(cfg_topic, json.dumps(cfg_payload))
+        for topic, payload in cfg_payloads.items():
+            await mqtt.publish(topic, json.dumps(payload), retain=True)
         await mqtt.subscribe(f"ooler/{sanitise_mac(myooler.address)}/+/set")
         background_tasks.add(asyncio.create_task(control_power(mqtt, myooler)))
         background_tasks.add(asyncio.create_task(control_fan(mqtt, myooler)))
         background_tasks.add(asyncio.create_task(control_temperature(mqtt, myooler)))
+        background_tasks.add(asyncio.create_task(control_cleaning(mqtt, myooler)))
         update_task = asyncio.create_task(send_update_loop(mqtt, myooler))
         background_tasks.add(update_task)
 
@@ -68,6 +91,16 @@ async def control_fan(mqtt: Client, myooler: ooler.Ooler) -> None:
         async for message in messages:
             fan_speed = message.payload.decode()
             myooler.fan_speed = constants.FanSpeed[fan_speed]
+            await send_update(mqtt, myooler)
+
+
+async def control_cleaning(mqtt: Client, myooler: ooler.Ooler) -> None:
+    """Watch for and act on instructions to start cleaning"""
+    message_filter = f"ooler/{sanitise_mac(myooler.address)}/cleaning/set"
+    async with mqtt.filtered_messages(message_filter) as messages:
+        async for message in messages:
+            payload = message.payload.decode()
+            myooler.cleaning = payload == "True"
             await send_update(mqtt, myooler)
 
 
@@ -112,6 +145,8 @@ async def send_update(mqtt: Client, myooler: ooler.Ooler) -> None:
         "current_temperature": myooler.actual_temperature_c,
         "desired_temperature": myooler.desired_temperature_c,
         "fan_mode": (myooler.fan_speed).name,
+        "water_level": myooler.water_level,
+        "cleaning": myooler.cleaning,
     }
 
     topic = f"ooler/{sanitise_mac(myooler.address)}/state"

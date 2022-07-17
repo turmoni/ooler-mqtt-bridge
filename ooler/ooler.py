@@ -150,6 +150,37 @@ class Ooler:
         )
 
     @property
+    def water_level(self) -> int:
+        """Return the water level of the Ooler"""
+        return int.from_bytes(
+            self._request_characteristic(constants.WATER_LEVEL), byteorder="big"
+        )
+
+    @property
+    def pump_wattage(self) -> int:
+        """Return the wattage of the pump"""
+        return int.from_bytes(
+            self._request_characteristic(constants.PUMP_WATTS), byteorder="big"
+        )
+
+    @property
+    def pump_voltage(self) -> int:
+        """Return the volttage of the pump"""
+        return int.from_bytes(
+            self._request_characteristic(constants.PUMP_VOLTS), byteorder="big"
+        )
+
+    @property
+    def cleaning(self) -> bool:
+        """Return whether the device is cleaning itself"""
+        return self._request_characteristic(constants.CLEAN) == b"\x01"
+
+    @cleaning.setter
+    def cleaning(self, value: bool) -> None:
+        """Tell the device to clean"""
+        self._write_characteristic(constants.CLEAN, value.to_bytes(1, byteorder="big"))
+
+    @property
     def name(self) -> str:
         """Get the name of the Ooler"""
         return self._request_characteristic(constants.NAME).decode(encoding="ascii")
