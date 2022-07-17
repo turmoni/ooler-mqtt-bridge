@@ -14,11 +14,14 @@ The data that are exposed are:
  * Actual temperature (°C)
  * Power state ("off" or "auto", "auto" being on)
  * Fan speed ("Silent", "Regular", or "Boost")
+ * Water level (%)
+ * UV cleaning state
 
 Parameters that can be controlled are:
  * Desired temperature (°C)
  * Power state
  * Fan speed
+ * UV cleaning
 
 Whilst this does target Home Assistant, and publishes an autoconfiguration
 message for Home Assistant to pick up on to seamlessly integrate it as an HVAC
