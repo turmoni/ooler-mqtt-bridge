@@ -14,7 +14,7 @@ The data that are exposed are:
  * Actual temperature (°C)
  * Power state ("off" or "auto", "auto" being on)
  * Fan speed ("Silent", "Regular", or "Boost")
- * Water level (%)
+ * Water level (which I think is percentage, but have only seen values of 100 and 50 so far)
  * UV cleaning state
 
 Parameters that can be controlled are:
