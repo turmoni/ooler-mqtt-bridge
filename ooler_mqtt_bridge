@@ -12,6 +12,7 @@ import ooler
 async def main():
     """Initiate and start the loop"""
     myooler = ooler.Ooler(address=config["ooler_mac"], stay_connected=True)
+    await myooler.connect()
 
     device_definition = {
         "connections": [("mac", myooler.address)],
@@ -22,7 +23,7 @@ async def main():
 
     cfg_payloads = {
         f"{config['homeassistant_prefix']}/climate/{sanitise_mac(myooler.address)}/config": {
-            "name": myooler.name,
+            "name": await myooler.get_name(),
             "mode_state_topic": f"ooler/{sanitise_mac(myooler.address)}/state",
             "mode_state_template": "{{ value_json.power }}",
             "current_temperature_topic": f"ooler/{sanitise_mac(myooler.address)}/state",
@@ -90,7 +91,7 @@ async def control_fan(mqtt: Client, myooler: ooler.Ooler) -> None:
     async with mqtt.filtered_messages(message_filter) as messages:
         async for message in messages:
             fan_speed = message.payload.decode()
-            myooler.fan_speed = constants.FanSpeed[fan_speed]
+            await myooler.set_fan_speed(constants.FanSpeed[fan_speed])
             await send_update(mqtt, myooler)
 
 
@@ -100,7 +101,7 @@ async def control_cleaning(mqtt: Client, myooler: ooler.Ooler) -> None:
     async with mqtt.filtered_messages(message_filter) as messages:
         async for message in messages:
             payload = message.payload.decode()
-            myooler.cleaning = payload == "True"
+            await myooler.set_cleaning(payload == "True")
             await send_update(mqtt, myooler)
 
 
@@ -110,7 +111,7 @@ async def control_temperature(mqtt: Client, myooler: ooler.Ooler) -> None:
     async with mqtt.filtered_messages(message_filter) as messages:
         async for message in messages:
             temperature = int(float(message.payload.decode()))
-            myooler.desired_temperature_c = temperature
+            await myooler.set_desired_temperature_c(temperature)
             await send_update(mqtt, myooler)
 
 
@@ -120,9 +121,9 @@ async def control_power(mqtt: Client, myooler: ooler.Ooler) -> None:
     async with mqtt.filtered_messages(message_filter) as messages:
         async for message in messages:
             if message.payload.decode() == "off":
-                myooler.powered_on = False
+                await myooler.set_power_state(False)
             elif message.payload.decode() == "auto":
-                myooler.powered_on = True
+                await myooler.set_power_state(True)
 
             await send_update(mqtt, myooler)
 
@@ -137,16 +138,16 @@ async def send_update_loop(mqtt: Client, myooler: ooler.Ooler) -> None:
 async def send_update(mqtt: Client, myooler: ooler.Ooler) -> None:
     """Send a single update message"""
     power = "off"
-    if myooler.powered_on is True:
+    if await myooler.powered_on() is True:
         power = "auto"
 
     state_payload = {
         "power": power,
-        "current_temperature": myooler.actual_temperature_c,
-        "desired_temperature": myooler.desired_temperature_c,
-        "fan_mode": (myooler.fan_speed).name,
-        "water_level": myooler.water_level,
-        "cleaning": myooler.cleaning,
+        "current_temperature": await myooler.get_actual_temperature_c(),
+        "desired_temperature": await myooler.get_desired_temperature_c(),
+        "fan_mode": (await myooler.get_fan_speed()).name,
+        "water_level": await myooler.get_water_level(),
+        "cleaning": await myooler.is_cleaning(),
     }
 
     topic = f"ooler/{sanitise_mac(myooler.address)}/state"
