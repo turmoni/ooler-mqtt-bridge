@@ -14,6 +14,7 @@ class Ooler:
         self.requester = GATTRequester(address, False)
         self.logger = logging.getLogger(__name__)
         self.logger.setLevel(logging.DEBUG)
+        self.device_temperature_unit = None
         if self.stay_connected:
             self.connect()
 
@@ -89,16 +90,25 @@ class Ooler:
         return round(f_float)
 
     @property
+    def _actual_temperature_raw(self) -> int:
+        """Get the current tempterature in whatever the Ooler is configured for"""
+        return int.from_bytes(
+            self._request_characteristic(constants.ACTUAL_TEMP), byteorder="big"
+        )
+
+    @property
     def actual_temperature_f(self) -> int:
         """Get the current tempterature in Fahrenheit"""
-        return int.from_bytes(
-            self._request_characteristic(constants.ACTUAL_TEMP_F), byteorder="big"
-        )
+        if self.temperature_unit == constants.TemperatureUnit.Celsius:
+            return self._c_to_f(self._actual_temperature_raw)
+        return self._actual_temperature_raw
 
     @property
     def actual_temperature_c(self) -> int:
         """Get the current tempterature in Celsius"""
-        return self._f_to_c(self.actual_temperature_f)
+        if self.temperature_unit == constants.TemperatureUnit.Fahrenheit:
+            return self._f_to_c(self._actual_temperature_raw)
+        return self._actual_temperature_raw
 
     @property
     def desired_temperature_f(self) -> int:
@@ -135,6 +145,16 @@ class Ooler:
         self._write_characteristic(
             constants.POWER_STATUS, value.to_bytes(1, byteorder="big")
         )
+
+    @property
+    def temperature_unit(self) -> constants.TemperatureUnit:
+        """Return the temperature unit of the Ooler"""
+        if self.device_temperature_unit is None:
+            unit = self._request_characteristic(constants.DISPLAY_TEMPERATURE_UNIT)
+            self.device_temperature_unit = constants.TemperatureUnit(
+                int.from_bytes(unit, byteorder="big")
+            )
+        return self.device_temperature_unit
 
     @property
     def fan_speed(self) -> constants.FanSpeed:

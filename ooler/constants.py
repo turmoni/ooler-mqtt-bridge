@@ -2,7 +2,7 @@
 from enum import Enum
 
 TARGET_TEMP_F = "6aa46711-a29d-4f8a-88e2-044ca1fd03ff"
-ACTUAL_TEMP_F = "e8ebded3-9dca-45c2-a2d8-ceffb901474d"
+ACTUAL_TEMP = "e8ebded3-9dca-45c2-a2d8-ceffb901474d"
 FAN_SPEED = "cafe2421-d04c-458f-b1c0-253c6c97e8e8"
 POWER_STATUS = "7a2623ff-bd92-4c13-be9f-7023aa4ecb85"
 WARM_WAKE_ENABLED = "7aa73db1-1c2d-4c8c-9195-36c0a4b6acb2"
@@ -19,6 +19,13 @@ POWER_RAIL = "acab07ec-fc95-451d-88e5-4565a364a806"
 LIFETIME = "5d30781f-1d06-4790-bbb8-5e1d7da96383"
 RUNTIME = "1a5c6dae-34de-4265-9fa6-0a59f7f683ee"
 UV_RUNTIME = "0ab6ff00-8d1b-475e-bcfa-ed3467f1f890"
+DISPLAY_TEMPERATURE_UNIT = "2c988613-fe15-4067-85bc-8e59d5e0b1e3"
+
+
+class TemperatureUnit(Enum):
+    Fahrenheit = 0
+    Celsius = 1
+
 
 class FanSpeed(Enum):
     Silent = 0
