@@ -14,6 +14,7 @@ class Ooler:
         self.client = None
         self.logger = logging.getLogger(__name__)
         self.logger.setLevel(logging.DEBUG)
+        self.device_temperature_unit = None
 
     async def connect(self) -> None:
         """Attempt to connect to the Ooler"""
@@ -25,11 +26,8 @@ class Ooler:
         await self.client.connect()
         self.logger.info(f"Connected to {self.address}")
 
-
         if not self.client.is_connected:
-            raise ConnectionError(
-                "Failed to connect to Ooler"
-            )
+            raise ConnectionError("Failed to connect to Ooler")
 
     async def _request_characteristic(self, uuid: str) -> bytes:
         """Request a characteristic, handling connections and the like"""
@@ -69,15 +67,23 @@ class Ooler:
         f_float = (deg_c * 1.8) + 32
         return round(f_float)
 
+    async def get_actual_temperature_raw(self) -> int:
+        """Get the current tempterature in whatever the Ooler is configured for"""
+        return int.from_bytes(
+            await self._request_characteristic(constants.ACTUAL_TEMP), byteorder="big"
+        )
+
     async def get_actual_temperature_f(self) -> int:
         """Get the current tempterature in Fahrenheit"""
-        return int.from_bytes(
-            await self._request_characteristic(constants.ACTUAL_TEMP_F), byteorder="big"
-        )
+        if await self.get_temperature_unit() == constants.TemperatureUnit.Celsius:
+            return self._f_to_c(await self.get_actual_temperature_raw())
+        return await self.get_actual_temperature_raw()
 
     async def get_actual_temperature_c(self) -> int:
         """Get the current tempterature in Celsius"""
-        return self._f_to_c(await self.get_actual_temperature_f())
+        if await self.get_temperature_unit() == constants.TemperatureUnit.Fahrenheit:
+            return self._f_to_c(await self.get_actual_temperature_raw())
+        return await self.get_actual_temperature_raw()
 
     async def get_desired_temperature_f(self) -> int:
         """Get the desired tempterature in Fahrenheit"""
@@ -108,6 +114,15 @@ class Ooler:
         await self._write_characteristic(
             constants.POWER_STATUS, value.to_bytes(1, byteorder="big")
         )
+
+    async def get_temperature_unit(self) -> constants.TemperatureUnit:
+        """Return the temperature unit of the Ooler"""
+        if self.device_temperature_unit is None:
+            unit = await self._request_characteristic(constants.DISPLAY_TEMPERATURE_UNIT)
+            self.device_temperature_unit = constants.TemperatureUnit(
+                int.from_bytes(unit, byteorder="big")
+            )
+        return self.device_temperature_unit
 
     async def get_fan_speed(self) -> constants.FanSpeed:
         """Return the fan mode of the Ooler"""
@@ -144,8 +159,12 @@ class Ooler:
 
     async def set_cleaning(self, value: bool) -> None:
         """Tell the device to clean"""
-        await self._write_characteristic(constants.CLEAN, value.to_bytes(1, byteorder="big"))
+        await self._write_characteristic(
+            constants.CLEAN, value.to_bytes(1, byteorder="big")
+        )
 
     async def get_name(self) -> str:
         """Get the name of the Ooler"""
-        return (await self._request_characteristic(constants.NAME)).decode(encoding="ascii")
+        return (await self._request_characteristic(constants.NAME)).decode(
+            encoding="ascii"
+        )
