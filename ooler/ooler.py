@@ -3,7 +3,6 @@ import logging
 from ooler import constants
 from bleak import BleakClient, BleakError
 import asyncio
-from threading import Lock
 
 
 class Ooler:
@@ -18,14 +17,18 @@ class Ooler:
         self.logger = logging.getLogger(__name__)
         self.logger.setLevel(logging.DEBUG)
         self.device_temperature_unit = None
-        self.connection_lock = Lock()
+        self.connection_lock = asyncio.Lock()
 
     async def connect(self) -> None:
         """Attempt to connect to the Ooler"""
         if self.client and self.client.is_connected:
             return
 
-        with self.connection_lock:
+        async with self.connection_lock:
+            # Check if someone else connected already
+            if self.client and self.client.is_connected:
+                return
+
             attempt = 0
             self.client = BleakClient(self.address)
             while not self.client.is_connected and attempt < self.max_connection_attempts:
