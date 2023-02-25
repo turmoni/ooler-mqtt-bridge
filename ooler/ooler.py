@@ -38,7 +38,7 @@ class Ooler:
                     self.logger.info(f"Connected to {self.address}")
                 except BleakError as exc:
                     self.logger.warning(f"Failed to connect on attempt {attempt}, got {exc}")
-                    asyncio.sleep(self.connection_retry_interval)
+                    await asyncio.sleep(self.connection_retry_interval)
                 attempt = attempt + 1
 
             if not self.client.is_connected:
