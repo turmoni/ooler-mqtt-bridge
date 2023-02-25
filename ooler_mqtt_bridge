@@ -64,7 +64,10 @@ async def main():
         },
     }
 
-    async with Client(config["mqtt_broker"]) as mqtt:
+    async with Client(
+        hostname=config["mqtt_broker"],
+        username=config["mqtt_username"],
+        password=config["mqtt_password"]) as mqtt:
         for topic, payload in cfg_payloads.items():
             await mqtt.publish(topic, json.dumps(payload), retain=True)
         await mqtt.subscribe(f"ooler/{sanitise_mac(myooler.address)}/+/set")

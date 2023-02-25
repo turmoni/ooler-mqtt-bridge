@@ -7,3 +7,6 @@ mqtt_broker: mosquitto
 homeassistant_prefix: homeassistant
 # How often to send periodic updates, in seconds
 update_interval: 60
+# Login information to authenticate to MQTT
+mqtt_username: username
+mqtt_password: password
