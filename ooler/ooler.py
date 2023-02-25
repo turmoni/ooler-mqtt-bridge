@@ -2,17 +2,18 @@
 import logging
 from ooler import constants
 from bleak import BleakClient, BleakError
-import time
+import asyncio
 from threading import Lock
 
 
 class Ooler:
     """Control an Ooler device via Bluetooth LE"""
 
-    def __init__(self, address=None, stay_connected=True, max_connection_attempts=30):
+    def __init__(self, address=None, stay_connected=True, max_connection_attempts=30, connection_retry_interval=1):
         self.address = address
         self.stay_connected = stay_connected
         self.max_connection_attempts = max_connection_attempts
+        self.connection_retry_interval = connection_retry_interval
         self.client = BleakClient(self.address)
         self.logger = logging.getLogger(__name__)
         self.logger.setLevel(logging.DEBUG)
@@ -34,7 +35,7 @@ class Ooler:
                     self.logger.info(f"Connected to {self.address}")
                 except BleakError as exc:
                     self.logger.warning(f"Failed to connect on attempt {attempt}, got {exc}")
-                    time.sleep(1)
+                    asyncio.sleep(self.connection_retry_interval)
                 attempt = attempt + 1
 
             if not self.client.is_connected:
