@@ -4,12 +4,16 @@ import json
 import sys
 import asyncio
 import yaml
+import asyncio
+import asyncio_mqtt as aiomqtt
 from asyncio_mqtt import Client
 from ooler import constants
 import ooler
+import logging
 
 
 async def main():
+    logger = logging.getLogger(__name__)
     """Initiate and start the loop"""
     myooler = ooler.Ooler(address=config["ooler_mac"], stay_connected=True)
     await myooler.connect()
@@ -65,23 +69,26 @@ async def main():
         },
     }
 
-    async with Client(
-        hostname=config["mqtt_broker"],
-        username=config["mqtt_username"] if "mqtt_username" in config else None,
-        password=config["mqtt_password"] if "mqtt_password" in config else None) as mqtt:
-        for topic, payload in cfg_payloads.items():
-            await mqtt.publish(topic, json.dumps(payload), retain=True)
-        await mqtt.subscribe(f"ooler/{sanitise_mac(myooler.address)}/+/set")
-        background_tasks.add(asyncio.create_task(control_power(mqtt, myooler)))
-        background_tasks.add(asyncio.create_task(control_fan(mqtt, myooler)))
-        background_tasks.add(asyncio.create_task(control_temperature(mqtt, myooler)))
-        background_tasks.add(asyncio.create_task(control_cleaning(mqtt, myooler)))
-        update_task = asyncio.create_task(send_update_loop(mqtt, myooler))
-        background_tasks.add(update_task)
-
-        # This will never return
-        await update_task
-
+    while True:
+        reconnect_interval = 5
+        try:
+            async with Client(
+                hostname=config["mqtt_broker"],
+                username=config["mqtt_username"] if "mqtt_username" in config else None,
+                password=config["mqtt_password"]) if "mqtt_password" in config else None) as mqtt:
+                for topic, payload in cfg_payloads.items():
+                    await mqtt.publish(topic, json.dumps(payload), retain=True)
+                await mqtt.subscribe(f"ooler/{sanitise_mac(myooler.address)}/+/set")
+                async with asyncio.TaskGroup() as tg:
+                    tg.create_task(control_power(mqtt, myooler))
+                    tg.create_task(control_fan(mqtt, myooler))
+                    tg.create_task(control_temperature(mqtt, myooler))
+                    tg.create_task(control_cleaning(mqtt, myooler))
+                    tg.create_task(send_update_loop(mqtt, myooler))
+                    # This will never return gracefully, but might bubble out if a task has an exception
+        except aiomqtt.MqttError as error:
+            logger.warning(f'Error "{error}". Reconnecting in {reconnect_interval} seconds.')
+            await asyncio.sleep(reconnect_interval)
 
 def sanitise_mac(mac: str) -> str:
     """Clean up a MAC so it's suitable for use where colons aren't"""
