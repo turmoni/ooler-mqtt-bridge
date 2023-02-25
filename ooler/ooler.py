@@ -2,32 +2,43 @@
 import logging
 from ooler import constants
 from bleak import BleakClient, BleakError
+import time
+from threading import Lock
 
 
 class Ooler:
     """Control an Ooler device via Bluetooth LE"""
 
-    def __init__(self, address=None, stay_connected=True, max_connection_attempts=5):
+    def __init__(self, address=None, stay_connected=True, max_connection_attempts=30):
         self.address = address
         self.stay_connected = stay_connected
         self.max_connection_attempts = max_connection_attempts
-        self.client = None
+        self.client = BleakClient(self.address)
         self.logger = logging.getLogger(__name__)
         self.logger.setLevel(logging.DEBUG)
         self.device_temperature_unit = None
+        self.connection_lock = Lock()
 
     async def connect(self) -> None:
         """Attempt to connect to the Ooler"""
         if self.client and self.client.is_connected:
             return
 
-        self.client = BleakClient(self.address)
-        self.logger.info("Attempting to connect")
-        await self.client.connect()
-        self.logger.info(f"Connected to {self.address}")
+        with self.connection_lock:
+            attempt = 0
+            self.client = BleakClient(self.address)
+            while not self.client.is_connected and attempt < self.max_connection_attempts:
+                self.logger.info(f"Attempting to connect number {attempt}")
+                try:
+                    await self.client.connect()
+                    self.logger.info(f"Connected to {self.address}")
+                except BleakError as exc:
+                    self.logger.warning(f"Failed to connect on attempt {attempt}, got {exc}")
+                    time.sleep(1)
+                attempt = attempt + 1
 
-        if not self.client.is_connected:
-            raise ConnectionError("Failed to connect to Ooler")
+            if not self.client.is_connected:
+                raise ConnectionError("Failed to connect to Ooler")
 
     async def _request_characteristic(self, uuid: str) -> bytes:
         """Request a characteristic, handling connections and the like"""
@@ -44,12 +55,12 @@ class Ooler:
     async def _write_characteristic(self, uuid: str, data: bytes) -> bytes:
         """Write a characteristic, handling connections and the like"""
         if not self.client.is_connected:
-            self.connect()
+            await self.connect()
 
         await self.client.write_gatt_char(uuid, data)
 
         if not self.stay_connected:
-            self.disconnect()
+            await self.disconnect()
 
     async def disconnect(self) -> None:
         """Disconnect from the Ooler"""
