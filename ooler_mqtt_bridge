@@ -165,7 +165,6 @@ async def send_update(mqtt: Client, myooler: ooler.Ooler) -> None:
 
 
 if __name__ == "__main__":
-    background_tasks = set()
     conf = sys.argv[1]
     with open(conf, "r", encoding="utf-8") as config_file:
         config = yaml.safe_load(config_file)
