@@ -8,7 +8,7 @@ import asyncio
 class Ooler:
     """Control an Ooler device via Bluetooth LE"""
 
-    def __init__(self, address=None, stay_connected=True, max_connection_attempts=30, connection_retry_interval=1):
+    def __init__(self, address=None, stay_connected=True, max_connection_attempts=30, connection_retry_interval=5):
         self.address = address
         self.stay_connected = stay_connected
         self.max_connection_attempts = max_connection_attempts
