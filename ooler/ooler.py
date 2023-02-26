@@ -46,10 +46,16 @@ class Ooler:
 
     async def _request_characteristic(self, uuid: str) -> bytes:
         """Request a characteristic, handling connections and the like"""
-        if not self.client.is_connected:
-            await self.connect()
+        for attempt in range(self.max_connection_attempts):
+            try:
+                if not self.client.is_connected:
+                    await self.connect()
 
-        value = await self.client.read_gatt_char(uuid)
+                value = await self.client.read_gatt_char(uuid)
+                break
+            except EOFError as exc:
+                self.logger.warning(f"Got EOFError {exc}. Attempt number {attempt}.")
+                await asyncio.sleep(self.connection_retry_interval)
 
         if not self.stay_connected:
             await self.disconnect()
@@ -58,10 +64,16 @@ class Ooler:
 
     async def _write_characteristic(self, uuid: str, data: bytes) -> bytes:
         """Write a characteristic, handling connections and the like"""
-        if not self.client.is_connected:
-            await self.connect()
+        for attempt in range(self.max_connection_attempts):
+            try:
+                if not self.client.is_connected:
+                    await self.connect()
 
-        await self.client.write_gatt_char(uuid, data)
+                await self.client.write_gatt_char(uuid, data)
+                break
+            except EOFError as exc:
+                self.logger.warning(f"Got EOFError {exc}. Attempt number {attempt}.")
+                await asyncio.sleep(self.connection_retry_interval)
 
         if not self.stay_connected:
             await self.disconnect()
