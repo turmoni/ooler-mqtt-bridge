@@ -66,6 +66,19 @@ async def main():
             "payload_on": True,
             "payload_off": False,
         },
+        f"{config['homeassistant_prefix']}/select/{sanitise_mac(myooler.address)}_temp_units/config": {
+            "name": "Device Temperature Units",
+            "state_topic": f"ooler/{sanitise_mac(myooler.address)}/state",
+            "command_topic": f"ooler/{sanitise_mac(myooler.address)}/temp_units/set",
+            "value_template": "{{ value_json.temp_units }}",
+            "unique_id": f"{myooler.address}_temp_units",
+            "device": device_definition,
+            "enabled_by_default": False,
+            "options": [
+                constants.TemperatureUnit.Celsius.name,
+                constants.TemperatureUnit.Fahrenheit.name
+                ],
+        },
     }
 
     while True:
@@ -83,6 +96,7 @@ async def main():
                     tg.create_task(control_fan(mqtt, myooler))
                     tg.create_task(control_temperature(mqtt, myooler))
                     tg.create_task(control_cleaning(mqtt, myooler))
+                    tg.create_task(control_device_units(mqtt, myooler))
                     tg.create_task(send_update_loop(mqtt, myooler))
                     # This will never return gracefully, but might bubble out if a task has an exception
         except aiomqtt.MqttError as error:
@@ -111,6 +125,17 @@ async def control_cleaning(mqtt: Client, myooler: ooler.Ooler) -> None:
         async for message in messages:
             payload = message.payload.decode()
             await myooler.set_cleaning(payload == "True")
+            await send_update(mqtt, myooler)
+
+
+async def control_device_units(mqtt: Client, myooler: ooler.Ooler) -> None:
+    """Watch for and act on instructions to change the device units"""
+    message_filter = f"ooler/{sanitise_mac(myooler.address)}/temp_units/set"
+    async with mqtt.filtered_messages(message_filter) as messages:
+        async for message in messages:
+            payload = message.payload.decode()
+            new_units = constants.TemperatureUnit[payload]
+            await myooler.set_temperature_unit(new_units)
             await send_update(mqtt, myooler)
 
 
@@ -157,6 +182,7 @@ async def send_update(mqtt: Client, myooler: ooler.Ooler) -> None:
         "fan_mode": (await myooler.get_fan_speed()).name,
         "water_level": await myooler.get_water_level(),
         "cleaning": await myooler.is_cleaning(),
+        "temp_units": (await myooler.get_temperature_unit()).name,
     }
 
     topic = f"ooler/{sanitise_mac(myooler.address)}/state"
