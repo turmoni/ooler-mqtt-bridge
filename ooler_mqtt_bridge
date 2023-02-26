@@ -139,8 +139,8 @@ async def get_discovery_payloads(myooler: ooler.Ooler) -> Dict[str, Dict[str, st
             "device": device_definition,
             "fan_modes": ["Silent", "Regular", "Boost"],
             "icon": "mdi:bed",
-            "max_temp": 115 if temp_unit is constants.TemperatureUnit.Fahrenheit else 47,
-            "min_temp": 47 if temp_unit is constants.TemperatureUnit.Fahrenheit else 12,
+            "max_temp": 120 if temp_unit is constants.TemperatureUnit.Fahrenheit else 47,
+            "min_temp": 45 if temp_unit is constants.TemperatureUnit.Fahrenheit else 12,
         },
         f"{config['homeassistant_prefix']}/sensor/{sanitise_mac(myooler.address)}_water_level/config": {
             "name": "Water Level",
