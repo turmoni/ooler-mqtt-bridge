@@ -2,39 +2,60 @@
 import logging
 from ooler import constants
 from bleak import BleakClient, BleakError
+import asyncio
 
 
 class Ooler:
     """Control an Ooler device via Bluetooth LE"""
 
-    def __init__(self, address=None, stay_connected=True, max_connection_attempts=5):
+    def __init__(self, address=None, stay_connected=True, max_connection_attempts=30, connection_retry_interval=1):
         self.address = address
         self.stay_connected = stay_connected
         self.max_connection_attempts = max_connection_attempts
-        self.client = None
+        self.connection_retry_interval = connection_retry_interval
+        self.client = BleakClient(self.address)
         self.logger = logging.getLogger(__name__)
         self.logger.setLevel(logging.DEBUG)
         self.device_temperature_unit = None
+        self.connection_lock = asyncio.Lock()
 
     async def connect(self) -> None:
         """Attempt to connect to the Ooler"""
         if self.client and self.client.is_connected:
             return
 
-        self.client = BleakClient(self.address)
-        self.logger.info("Attempting to connect")
-        await self.client.connect()
-        self.logger.info(f"Connected to {self.address}")
+        async with self.connection_lock:
+            # Check if someone else connected already
+            if self.client and self.client.is_connected:
+                return
 
-        if not self.client.is_connected:
-            raise ConnectionError("Failed to connect to Ooler")
+            attempt = 0
+            self.client = BleakClient(self.address)
+            while not self.client.is_connected and attempt < self.max_connection_attempts:
+                self.logger.info(f"Attempting to connect number {attempt}")
+                try:
+                    await self.client.connect()
+                    self.logger.info(f"Connected to {self.address}")
+                except BleakError as exc:
+                    self.logger.warning(f"Failed to connect on attempt {attempt}, got {exc}")
+                    await asyncio.sleep(self.connection_retry_interval)
+                attempt = attempt + 1
+
+            if not self.client.is_connected:
+                raise ConnectionError("Failed to connect to Ooler")
 
     async def _request_characteristic(self, uuid: str) -> bytes:
         """Request a characteristic, handling connections and the like"""
-        if not self.client.is_connected:
-            await self.connect()
+        for attempt in range(self.max_connection_attempts):
+            try:
+                if not self.client.is_connected:
+                    await self.connect()
 
-        value = await self.client.read_gatt_char(uuid)
+                value = await self.client.read_gatt_char(uuid)
+                break
+            except EOFError as exc:
+                self.logger.warning(f"Got EOFError {exc}. Attempt number {attempt}.")
+                await asyncio.sleep(self.connection_retry_interval)
 
         if not self.stay_connected:
             await self.disconnect()
@@ -43,13 +64,19 @@ class Ooler:
 
     async def _write_characteristic(self, uuid: str, data: bytes) -> bytes:
         """Write a characteristic, handling connections and the like"""
-        if not self.client.is_connected:
-            self.connect()
+        for attempt in range(self.max_connection_attempts):
+            try:
+                if not self.client.is_connected:
+                    await self.connect()
 
-        await self.client.write_gatt_char(uuid, data)
+                await self.client.write_gatt_char(uuid, data)
+                break
+            except EOFError as exc:
+                self.logger.warning(f"Got EOFError {exc}. Attempt number {attempt}.")
+                await asyncio.sleep(self.connection_retry_interval)
 
         if not self.stay_connected:
-            self.disconnect()
+            await self.disconnect()
 
     async def disconnect(self) -> None:
         """Disconnect from the Ooler"""
