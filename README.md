@@ -57,9 +57,8 @@ I have had issues with Python segfaulting, so I'm not able to properly handle
 all errors, and so I'm running this with it set to restart when it falls over.
 I would advise running it like this, e.g. with systemd.
 
-This only works with unencrypted and unauthenticated MQTT brokers - I imagine
-support shouldn't be too hard to add, it's just not something I need at the
-moment.
+This only works with unencrypted MQTT brokers - I imagine support shouldn't be
+too hard to add, it's just not something I need at the moment.
 
 The Ooler works in Fahrenheit internally, so the Celsius mappings are a bit
 clunky (and greater than the amount of precision allowed by the device). This
