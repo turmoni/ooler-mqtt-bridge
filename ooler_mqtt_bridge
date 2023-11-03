@@ -4,8 +4,8 @@ import json
 import sys
 import asyncio
 import yaml
-import asyncio_mqtt as aiomqtt
-from asyncio_mqtt import Client
+import aiomqtt
+from aiomqtt import Client
 from ooler import constants
 import ooler
 import logging

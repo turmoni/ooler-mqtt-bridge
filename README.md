@@ -41,7 +41,9 @@ in here for now.
 ## Installation/Configuration
 Installation consists of pulling in the packages listed in requirements.txt and
 putting the files of this repo somewhere. Optionally customise and install the
-systemd unit file provided to have it be nicely managed.
+systemd unit file provided to have it be nicely managed. Note that there is a
+minimum Python version requirement of 3.11, see the `older-python-support` tag
+if you aren't quite there yet.
 
 To configure it, edit the yaml file that is provided and pass this as an option
 on the command line. The configuration is documented in this file.
