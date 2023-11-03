@@ -4,7 +4,6 @@ import json
 import sys
 import asyncio
 import yaml
-import asyncio
 import asyncio_mqtt as aiomqtt
 from asyncio_mqtt import Client
 from ooler import constants
@@ -75,7 +74,7 @@ async def main():
             async with Client(
                 hostname=config["mqtt_broker"],
                 username=config["mqtt_username"] if "mqtt_username" in config else None,
-                password=config["mqtt_password"]) if "mqtt_password" in config else None) as mqtt:
+                password=config["mqtt_password"] if "mqtt_password" in config else None) as mqtt:
                 for topic, payload in cfg_payloads.items():
                     await mqtt.publish(topic, json.dumps(payload), retain=True)
                 await mqtt.subscribe(f"ooler/{sanitise_mac(myooler.address)}/+/set")
