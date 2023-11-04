@@ -103,7 +103,7 @@ class Ooler:
     async def get_actual_temperature_f(self) -> int:
         """Get the current tempterature in Fahrenheit"""
         if await self.get_temperature_unit() == constants.TemperatureUnit.Celsius:
-            return self._f_to_c(await self.get_actual_temperature_raw())
+            return self._c_to_f(await self.get_actual_temperature_raw())
         return await self.get_actual_temperature_raw()
 
     async def get_actual_temperature_c(self) -> int:
