@@ -9,8 +9,8 @@ from aiomqtt import Client
 from ooler import constants
 import ooler
 import logging
-
 from typing import Dict
+
 
 async def main():
     logger = logging.getLogger(__name__)
@@ -39,6 +39,7 @@ async def main():
             logger.warning(f'Error "{error}". Reconnecting in {reconnect_interval} seconds.')
             await asyncio.sleep(reconnect_interval)
 
+
 def sanitise_mac(mac: str) -> str:
     """Clean up a MAC so it's suitable for use where colons aren't"""
     return mac.replace(":", "_")
@@ -47,56 +48,61 @@ def sanitise_mac(mac: str) -> str:
 async def control_fan(mqtt: Client, myooler: ooler.Ooler) -> None:
     """Watch for and act on fan control messages"""
     message_filter = f"ooler/{sanitise_mac(myooler.address)}/fan/set"
-    async with mqtt.filtered_messages(message_filter) as messages:
+    async with mqtt.messages() as messages:
         async for message in messages:
-            fan_speed = message.payload.decode()
-            await myooler.set_fan_speed(constants.FanSpeed[fan_speed])
-            await send_update(mqtt, myooler)
+            if message.topic.matches(message_filter):
+                fan_speed = message.payload.decode()
+                await myooler.set_fan_speed(constants.FanSpeed[fan_speed])
+                await send_update(mqtt, myooler)
 
 
 async def control_cleaning(mqtt: Client, myooler: ooler.Ooler) -> None:
     """Watch for and act on instructions to start cleaning"""
     message_filter = f"ooler/{sanitise_mac(myooler.address)}/cleaning/set"
-    async with mqtt.filtered_messages(message_filter) as messages:
+    async with mqtt.messages() as messages:
         async for message in messages:
-            payload = message.payload.decode()
-            await myooler.set_cleaning(payload == "True")
-            await send_update(mqtt, myooler)
+            if message.topic.matches(message_filter):
+                payload = message.payload.decode()
+                await myooler.set_cleaning(payload == "True")
+                await send_update(mqtt, myooler)
 
 
 async def control_device_units(mqtt: Client, myooler: ooler.Ooler) -> None:
     """Watch for and act on instructions to change the device units"""
     message_filter = f"ooler/{sanitise_mac(myooler.address)}/temp_units/set"
-    async with mqtt.filtered_messages(message_filter) as messages:
+    async with mqtt.messages() as messages:
         async for message in messages:
-            payload = message.payload.decode()
-            new_units = constants.TemperatureUnit[payload]
-            await myooler.set_temperature_unit(new_units)
-            await send_discovery(mqtt, myooler)
-            await send_update(mqtt, myooler)
+            if message.topic.matches(message_filter):
+                payload = message.payload.decode()
+                new_units = constants.TemperatureUnit[payload]
+                await myooler.set_temperature_unit(new_units)
+                await send_discovery(mqtt, myooler)
+                await send_update(mqtt, myooler)
 
 
 async def control_temperature(mqtt: Client, myooler: ooler.Ooler) -> None:
     """Watch for and act on temperature control messages"""
     message_filter = f"ooler/{sanitise_mac(myooler.address)}/temperature/set"
-    async with mqtt.filtered_messages(message_filter) as messages:
+    async with mqtt.messages() as messages:
         async for message in messages:
-            temperature = int(float(message.payload.decode()))
-            await myooler.set_desired_temperature_c(temperature)
-            await send_update(mqtt, myooler)
+            if message.topic.matches(message_filter):
+                temperature = int(float(message.payload.decode()))
+                await myooler.set_desired_temperature_c(temperature)
+                await send_update(mqtt, myooler)
 
 
 async def control_power(mqtt: Client, myooler: ooler.Ooler) -> None:
     """Watch for and act on power control messages"""
     message_filter = f"ooler/{sanitise_mac(myooler.address)}/power/set"
-    async with mqtt.filtered_messages(message_filter) as messages:
+    async with mqtt.messages() as messages:
         async for message in messages:
-            if message.payload.decode() == "off":
-                await myooler.set_power_state(False)
-            elif message.payload.decode() == "auto":
-                await myooler.set_power_state(True)
+            if message.topic.matches(message_filter):
+                if message.payload.decode() == "off":
+                    await myooler.set_power_state(False)
+                elif message.payload.decode() == "auto":
+                    await myooler.set_power_state(True)
 
-            await send_update(mqtt, myooler)
+                await send_update(mqtt, myooler)
 
 
 async def get_discovery_payloads(myooler: ooler.Ooler) -> Dict[str, Dict[str, str]]:
