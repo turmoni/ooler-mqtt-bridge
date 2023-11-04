@@ -18,13 +18,6 @@ async def main():
     myooler = ooler.Ooler(address=config["ooler_mac"], stay_connected=True)
     await myooler.connect()
 
-    device_definition = {
-        "connections": [("mac", myooler.address)],
-        "model": "Ooler",
-        "manufacturer": "chilisleep",
-        "suggested_area": "Bedroom",
-    }
-
     while True:
         reconnect_interval = 5
         try:
@@ -108,6 +101,13 @@ async def control_power(mqtt: Client, myooler: ooler.Ooler) -> None:
 
 async def get_discovery_payloads(myooler: ooler.Ooler) -> Dict[str, Dict[str, str]]:
     """Return the discovery payloads for the device"""
+    device_definition = {
+        "connections": [("mac", myooler.address)],
+        "model": "Ooler",
+        "manufacturer": "chilisleep",
+        "suggested_area": "Bedroom",
+    }
+
     cfg_payloads = {
         f"{config['homeassistant_prefix']}/climate/{sanitise_mac(myooler.address)}/config": {
             "name": await myooler.get_name(),
