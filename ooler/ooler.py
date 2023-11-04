@@ -151,6 +151,13 @@ class Ooler:
             )
         return self.device_temperature_unit
 
+    async def set_temperature_unit(self, unit: constants.TemperatureUnit):
+        await self._write_characteristic(
+            constants.DISPLAY_TEMPERATURE_UNIT, unit.value.to_bytes(1, byteorder="big"))
+        # Refresh the cached value
+        self.device_temperature_unit = None
+        await self.get_temperature_unit()
+
     async def get_fan_speed(self) -> constants.FanSpeed:
         """Return the fan mode of the Ooler"""
         speed = await self._request_characteristic(constants.FAN_SPEED)
