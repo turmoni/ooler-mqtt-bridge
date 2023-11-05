@@ -1,5 +1,7 @@
 """Monitor and control an Ooler device via Bluetooth Low Energy"""
 import logging
+from datetime import datetime
+from zoneinfo import ZoneInfo
 from ooler import constants
 from bleak import BleakClient, BleakError
 import asyncio
@@ -93,6 +95,43 @@ class Ooler:
         """Convert Celsius to Fahrenheit, integer"""
         f_float = (deg_c * 1.8) + 32
         return round(f_float)
+
+    async def set_current_time(self, tz: str) -> None:
+        """Set the current time and time zone offset on the Ooler"""
+        # Documentation for these characteristics is weirdly hard to find for some
+        # reason, unless that's just me, but I'll document them here
+        curtime = datetime.now(tz=ZoneInfo(tz))
+
+        # First the Current Time Service, which is fairly self-explanatory from the code
+        time_data = bytearray()
+        time_data.extend(curtime.year.to_bytes(2, byteorder="little"))
+        time_data.append(curtime.month)
+        time_data.append(curtime.day)
+        time_data.append(curtime.hour)
+        time_data.append(curtime.minute)
+        time_data.append(curtime.second)
+        time_data.append(curtime.isoweekday())
+        # This is meant to be 256ths of a second, but I think we really don't care
+        time_data.append(0)
+        # And now we lie in our reason why we're updating; this is a bitfield:
+        # - Manual time update?
+        # - External reference time update?
+        # - Time zone change?
+        # - DST change:
+        # We'll just say it's a reference time update and nothing else.
+        time_data.append(2)
+        await self._write_characteristic(constants.CURRENT_TIME, time_data)
+
+        # Next is Local Time Information, which is a bit weirder.
+        local_data = bytearray()
+        # Offsets are in multiples of 15 minutes
+        offset = int(curtime.utcoffset().seconds/60/15)
+        if curtime.utcoffset().days == -1:
+            offset = (24 * 4) - offset
+        local_data.append(offset)
+        # And finally the DST offset, which is also calculated in 15 minute intervals
+        local_data.append(int(curtime.dst().seconds/60/15))
+        await self._write_characteristic(constants.LOCAL_TIME, local_data)
 
     async def get_actual_temperature_raw(self) -> int:
         """Get the current tempterature in whatever the Ooler is configured for"""
