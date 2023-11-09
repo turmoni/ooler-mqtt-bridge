@@ -92,6 +92,7 @@ async def control_temperature(mqtt: Client, myooler: ooler.Ooler) -> None:
                     await myooler.set_desired_temperature_f(temperature)
                 else:
                     await myooler.set_desired_temperature_c(temperature)
+                await send_update(mqtt, myooler)
 
 
 async def control_power(mqtt: Client, myooler: ooler.Ooler) -> None:
