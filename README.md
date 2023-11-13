@@ -66,8 +66,3 @@ The Ooler works in Fahrenheit internally, so the Celsius mappings are a bit
 clunky (and greater than the amount of precision allowed by the device). This
 is also true of the app. The underlying library allows for control via
 Fahrenheit, but the bridge only supports Celsius.
-
-I have only been able to test this on one device, so I don't know if there are
-any differences between different setups. This also only supports one device
-being configured, again, because I only have the one so wouldn't be able to use
-or test supporting more than one.
