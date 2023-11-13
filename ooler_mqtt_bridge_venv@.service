@@ -1,0 +1,12 @@
+[Unit]
+Description=Ooler MQTT Bridge
+
+[Service]
+WorkingDirectory=/usr/local/bin/ooler-mqtt-bridge
+ExecStart=/usr/local/bin/ooler-mqtt-bridge/env/bin/python ./ooler_mqtt_bridge /etc/%I
+User=pi
+Restart=always
+RestartSec=30
+
+[Install]
+WantedBy=multi-user.target
