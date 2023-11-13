@@ -1,3 +1,10 @@
+# Ooler MQTT service
+# To set up your environment:
+# - Install dependencies (pip install -r requirements.txt`)
+# - Put your config file(s) into /etc/
+# - Install this service file (into /etc/systemd/system, or such)
+# - Enable your service(s) for each config file, like `systemctl enable ooler_mqtt_bridge_venv@ooler_mqtt_bridge_1.yml`
+
 [Unit]
 Description=Ooler MQTT Bridge
 
