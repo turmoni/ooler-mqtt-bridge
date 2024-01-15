@@ -1,5 +1,6 @@
 """Constants to refer to the UUIDs for Ooler characteristics"""
 from enum import Enum
+from bleak import uuids
 
 TARGET_TEMP_F = "6aa46711-a29d-4f8a-88e2-044ca1fd03ff"
 ACTUAL_TEMP = "e8ebded3-9dca-45c2-a2d8-ceffb901474d"
@@ -20,6 +21,8 @@ LIFETIME = "5d30781f-1d06-4790-bbb8-5e1d7da96383"
 RUNTIME = "1a5c6dae-34de-4265-9fa6-0a59f7f683ee"
 UV_RUNTIME = "0ab6ff00-8d1b-475e-bcfa-ed3467f1f890"
 DISPLAY_TEMPERATURE_UNIT = "2c988613-fe15-4067-85bc-8e59d5e0b1e3"
+LOCAL_TIME = uuids.normalize_uuid_str("2A0F")
+CURRENT_TIME = uuids.normalize_uuid_str("2A2B")
 
 
 class TemperatureUnit(Enum):

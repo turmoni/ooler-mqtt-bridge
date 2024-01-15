@@ -18,6 +18,9 @@ async def main():
     myooler = ooler.Ooler(address=config["ooler_mac"], stay_connected=True)
     await myooler.connect()
 
+    if "tz" in config:
+        await myooler.set_current_time(config["tz"])
+
     while True:
         reconnect_interval = 5
         try:
